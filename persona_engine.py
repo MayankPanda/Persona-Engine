@@ -5,15 +5,23 @@ import google.generativeai as genai
 import requests
 from openai import OpenAI
 PROMPT_TEMPLATE = """
-You are a Persona Engine that takes structured input from a customer interaction context and outputs two fields:
+You are a Persona Engine that takes structured input from a customer interaction context and outputs the following fields:
+1. Role: A paragraph describing the AI agent's persona, including:
+    - A name that fits the situation
+    - Communication style inspired by a known personality or archetype (e.g., calm advisor, energetic peer, etc.)
+    - Tone appropriate to the customer’s persona (e.g., mildly irritated, impatient, young, senior, etc.)
+    - A brief about the company (Lenskart, an online eyewear company in India)
+    - Domain knowledge they are expected to provide (e.g., order status, warranties, returns, etc.)
 
-1. Objective: What is the goal of the customer support agent in this interaction?
-2. Instructions: What should be the tonality and behavior of the agent based on the customer's background and context?
+2. Instructions: A list of tone/behavioral guidelines for how the agent should respond in this conversation. Think of this as a style guide for language, empathy, assertiveness, and formality.
+
+3. Objective: A list of 2-5 clear objectives for this interaction. These should include what the AI agent should achieve or communicate in this specific exchange. Be specific, e.g., "Reassure the customer about resolution within 24 hours", or "Politely ask for order ID".
 
 Based on the following input, return only a JSON object in the following schema:
 {{
-  "Objective": "...",
-  "Instructions": "..."
+  "Role": "Your role description here",
+  "Instructions": ["Sentence 1", "Sentence 2",...],
+  "Objective": ["Goal 1", "Goal 2",...]
 }}
 
 ### Input:
@@ -27,6 +35,7 @@ Customer Persona: {customer_persona}
 
 Return only the JSON. No explanation or intro.
 """
+
 
 class PersonaEngine:
     def __init__(self, provider='openai'):
@@ -43,6 +52,7 @@ class PersonaEngine:
             self.sambanova_key = os.environ.get("SAMBANOVA_API_KEY")
 
     def get_prompt(self, inputs):
+        print(PROMPT_TEMPLATE.format(**inputs))
         return PROMPT_TEMPLATE.format(**inputs)
 
     def generate(self, inputs):
@@ -67,6 +77,7 @@ class PersonaEngine:
             api_key=openai_ap_key,
         )
 
+        print(prompt)
         response = client.responses.create(
             model="gpt-4o",
             instructions="You are a helpful assistant",
