@@ -1,0 +1,101 @@
+import os
+import openai
+import json
+import google.generativeai as genai
+import requests
+from openai import OpenAI
+PROMPT_TEMPLATE = """
+You are a Persona Engine that takes structured input from a customer interaction context and outputs two fields:
+
+1. Objective: What is the goal of the customer support agent in this interaction?
+2. Instructions: What should be the tonality and behavior of the agent based on the customer's background and context?
+
+Based on the following input, return only a JSON object in the following schema:
+{{
+  "Objective": "...",
+  "Instructions": "..."
+}}
+
+### Input:
+Interaction Number: {interaction_number}
+Steps Remaining: {steps_remaining}
+Timeframe Left: {timeframe}
+Interaction Reason: {interaction_reason}
+Customer Age: {customer_age}
+Previous Orders: {previous_orders}
+Customer Persona: {customer_persona}
+
+Return only the JSON. No explanation or intro.
+"""
+
+class PersonaEngine:
+    def __init__(self, provider='openai'):
+        self.provider = provider
+        if provider == 'openai':
+            openai_ap_key=None
+            with open('creds.json', 'r') as file:
+                data = json.load(file)
+                openai_ap_key= data['OPENAI_API_KEY']
+            openai.api_key = openai_ap_key
+        elif provider == 'gemini':
+            genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
+        elif provider == 'sambanova':
+            self.sambanova_key = os.environ.get("SAMBANOVA_API_KEY")
+
+    def get_prompt(self, inputs):
+        return PROMPT_TEMPLATE.format(**inputs)
+
+    def generate(self, inputs):
+        prompt = self.get_prompt(inputs)
+        if self.provider == 'openai':
+            return self._from_openai(prompt)
+        elif self.provider == 'gemini':
+            return self._from_gemini(prompt)
+        elif self.provider == 'sambanova':
+            return self._from_sambanova(prompt)
+        else:
+            raise ValueError("Unsupported provider")
+
+    def _from_openai(self, prompt):
+        openai_ap_key=None
+        with open('creds.json', 'r') as file:
+            data = json.load(file)
+            openai_ap_key= data['OPENAI_API_KEY']
+
+        client = OpenAI(
+            # This is the default and can be omitted
+            api_key=openai_ap_key,
+        )
+
+        response = client.responses.create(
+            model="gpt-4o",
+            instructions="You are a helpful assistant",
+            input=prompt,
+        )
+        text = response.output_text
+        start_index = text.find('{')
+        end_index = text.rfind('}') + 1 # +1 to include the closing curly brace
+        json_string = text[start_index:end_index]
+        data = json.loads(json_string)
+        print("Text:", text)
+        print("Data:", data)
+        return data
+
+    def _from_gemini(self, prompt):
+        model = genai.GenerativeModel("gemini-2.0-flash")
+        response = model.generate_content(prompt)
+        return json.loads(response.text.strip())
+
+    def _from_sambanova(self, prompt):
+        url = "https://api.sambanova.ai/v1/generate"
+        headers = {
+            "Authorization": f"Bearer {self.sambanova_key}",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "prompt": prompt,
+            "max_tokens": 512,
+            "temperature": 0.7
+        }
+        response = requests.post(url, headers=headers, json=payload)
+        return json.loads(response.json()['text'].strip())
