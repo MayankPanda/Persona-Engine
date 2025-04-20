@@ -18,7 +18,6 @@ async def generate_persona(payload: PersonaRequest):
             raise ValueError("Session details not found")
         result = engine.generate(inputs)
         print(type(result))
-        result["Role"]="System"
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
